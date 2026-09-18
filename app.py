@@ -2,6 +2,8 @@ import time
 
 import cv2
 
+from trackers import CSRTTracker
+
 
 WINDOW_NAME = "CV Object Tracker"
 CAMERA_INDEX = 0
@@ -21,9 +23,11 @@ def main() -> None:
 
     if not success:
         cap.release()
-        raise RuntimeError("Could not read the first frame from the webcam.")
+        raise RuntimeError(
+            "Could not read the first frame from the webcam."
+        )
 
-    # Let the user select the target object
+    # Select target
     bbox = cv2.selectROI(
         "Select Target",
         frame,
@@ -33,7 +37,7 @@ def main() -> None:
 
     cv2.destroyWindow("Select Target")
 
-    # Validate the selected bounding box
+    # Validate ROI
     x, y, width, height = map(int, bbox)
 
     if width <= 0 or height <= 0:
@@ -43,19 +47,17 @@ def main() -> None:
         print("No valid target was selected.")
         return
 
-    # Create CSRT tracker
-    tracker = cv2.TrackerCSRT_create()
+    # Create CSRT tracker through our abstraction
+    tracker = CSRTTracker()
 
-    # Initialize tracker using the first frame and selected ROI
-    tracker.init(
+    tracker.initialize(
         frame,
         (x, y, width, height),
     )
 
-    print("CSRT tracker initialized.")
+    print(f"{tracker.name} tracker initialized.")
     print("Press 'q' to quit.")
 
-    # FPS variables
     previous_time = time.perf_counter()
 
     while True:
@@ -82,7 +84,7 @@ def main() -> None:
 
         # Draw tracking result
         if tracking_success:
-            x, y, width, height = map(int, bbox)
+            x, y, width, height = bbox
 
             cv2.rectangle(
                 frame,
@@ -94,7 +96,7 @@ def main() -> None:
 
             cv2.putText(
                 frame,
-                "CSRT | Tracking",
+                f"{tracker.name} | Tracking",
                 (x, max(30, y - 10)),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.7,
@@ -105,7 +107,7 @@ def main() -> None:
         else:
             cv2.putText(
                 frame,
-                "CSRT | Target Lost",
+                f"{tracker.name} | Target Lost",
                 (20, 40),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.8,
@@ -113,7 +115,7 @@ def main() -> None:
                 2,
             )
 
-        # Display FPS
+        # Draw FPS
         cv2.putText(
             frame,
             f"FPS: {fps:.1f}",
@@ -124,10 +126,10 @@ def main() -> None:
             2,
         )
 
-        # Show result
+        # Display frame
         cv2.imshow(WINDOW_NAME, frame)
 
-        # Handle keyboard input
+        # Keyboard control
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord("q"):
