@@ -1,10 +1,10 @@
 import argparse
-import time
 from pathlib import Path
 
 import cv2
 
 from trackers import create_tracker
+from utils import FPSCounter, draw_tracking_result
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -102,7 +102,7 @@ def main() -> None:
     print(f"{tracker.name} tracker initialized.")
     print("Press 'q' to quit.")
 
-    previous_time = time.perf_counter()
+    fps_counter = FPSCounter()
 
     while True:
         # Read frame
@@ -115,83 +115,26 @@ def main() -> None:
         # Update tracker
         tracking_success, bbox = tracker.update(frame)
 
-        # Calculate FPS
-        current_time = time.perf_counter()
-        elapsed_time = current_time - previous_time
+        # Update FPS
+        fps = fps_counter.update()
 
-        fps = 0.0
+        # Get optional tracker score
+        score = tracker.get_score()
 
-        if elapsed_time > 0:
-            fps = 1.0 / elapsed_time
-
-        previous_time = current_time
-
-        # Get tracker score when supported
-        score = None
-
-        if hasattr(tracker, "get_score"):
-            score = tracker.get_score()
-
-        # Draw tracking result
-        if tracking_success:
-            x, y, width, height = bbox
-
-            cv2.rectangle(
-                frame,
-                (x, y),
-                (x + width, y + height),
-                (0, 255, 0),
-                2,
-            )
-
-            cv2.putText(
-                frame,
-                f"{tracker.name} | Tracking",
-                (x, max(30, y - 10)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (0, 255, 0),
-                2,
-            )
-
-        else:
-            cv2.putText(
-                frame,
-                f"{tracker.name} | Target Lost",
-                (20, 40),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.8,
-                (0, 0, 255),
-                2,
-            )
-
-        # FPS
-        cv2.putText(
-            frame,
-            f"FPS: {fps:.1f}",
-            (20, 75),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (255, 255, 0),
-            2,
+        # Draw result
+        output = draw_tracking_result(
+            frame=frame,
+            bbox=bbox,
+            tracker_name=tracker.name,
+            success=tracking_success,
+            fps=fps,
+            score=score,
         )
-
-        # Score
-        if score is not None:
-            cv2.putText(
-                frame,
-                f"Score: {score:.3f}",
-                (20, 110),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 0),
-                2,
-            )
 
         # Display
         cv2.imshow(
             WINDOW_NAME,
-            frame,
+            output,
         )
 
         # Keyboard

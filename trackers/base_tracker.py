@@ -34,6 +34,14 @@ class BaseTracker(ABC):
 
         Returns:
             success: Whether the target was successfully tracked.
-            bbox: The estimated target bounding box.
+            bbox: Estimated target bounding box.
         """
         raise NotImplementedError
+
+    def get_score(self) -> float | None:
+        """
+        Return the tracker confidence/score when available.
+
+        Trackers that do not expose a score return None.
+        """
+        return None
