@@ -37,3 +37,7 @@ benchmark/results/
 # Local configuration
 
 .env
+
+```text
+# Model files
+models/*.onnx

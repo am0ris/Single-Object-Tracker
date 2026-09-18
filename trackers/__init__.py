@@ -1,8 +1,10 @@
-from .base_tracker import BaseTracker, BBox
+from .base_tracker import BBox, BaseTracker
 from .csrt_tracker import CSRTTracker
+from .nano_tracker import NanoTracker
 
 __all__ = [
-    "BaseTracker",
     "BBox",
+    "BaseTracker",
     "CSRTTracker",
+    "NanoTracker",
 ]

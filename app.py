@@ -1,16 +1,19 @@
 import time
+from pathlib import Path
 
 import cv2
 
-from trackers import CSRTTracker
+from trackers import NanoTracker
 
+
+BASE_DIR = Path(__file__).resolve().parent
+MODELS_DIR = BASE_DIR / "models"
 
 WINDOW_NAME = "CV Object Tracker"
 CAMERA_INDEX = 0
 
 
 def main() -> None:
-    # Open webcam
     cap = cv2.VideoCapture(CAMERA_INDEX)
 
     if not cap.isOpened():
@@ -18,7 +21,6 @@ def main() -> None:
             f"Could not open webcam with index {CAMERA_INDEX}."
         )
 
-    # Read the first frame
     success, frame = cap.read()
 
     if not success:
@@ -27,7 +29,6 @@ def main() -> None:
             "Could not read the first frame from the webcam."
         )
 
-    # Select target
     bbox = cv2.selectROI(
         "Select Target",
         frame,
@@ -37,7 +38,6 @@ def main() -> None:
 
     cv2.destroyWindow("Select Target")
 
-    # Validate ROI
     x, y, width, height = map(int, bbox)
 
     if width <= 0 or height <= 0:
@@ -47,8 +47,10 @@ def main() -> None:
         print("No valid target was selected.")
         return
 
-    # Create CSRT tracker through our abstraction
-    tracker = CSRTTracker()
+    tracker = NanoTracker(
+        backbone_path=MODELS_DIR / "nanotrack_backbone_sim.onnx",
+        neckhead_path=MODELS_DIR / "nanotrack_head_sim.onnx",
+    )
 
     tracker.initialize(
         frame,
@@ -61,17 +63,14 @@ def main() -> None:
     previous_time = time.perf_counter()
 
     while True:
-        # Read next frame
         success, frame = cap.read()
 
         if not success:
             print("Could not read frame from webcam.")
             break
 
-        # Update tracker
         tracking_success, bbox = tracker.update(frame)
 
-        # Calculate FPS
         current_time = time.perf_counter()
         elapsed_time = current_time - previous_time
 
@@ -82,7 +81,8 @@ def main() -> None:
 
         previous_time = current_time
 
-        # Draw tracking result
+        score = tracker.get_score()
+
         if tracking_success:
             x, y, width, height = bbox
 
@@ -115,7 +115,6 @@ def main() -> None:
                 2,
             )
 
-        # Draw FPS
         cv2.putText(
             frame,
             f"FPS: {fps:.1f}",
@@ -126,16 +125,23 @@ def main() -> None:
             2,
         )
 
-        # Display frame
+        cv2.putText(
+            frame,
+            f"Score: {score:.3f}",
+            (20, 110),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (255, 255, 0),
+            2,
+        )
+
         cv2.imshow(WINDOW_NAME, frame)
 
-        # Keyboard control
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord("q"):
             break
 
-    # Cleanup
     cap.release()
     cv2.destroyAllWindows()
 
