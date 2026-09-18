@@ -1,37 +1,43 @@
+import argparse
 import time
 from pathlib import Path
 
 import cv2
 
-from trackers import VitTracker
+from trackers import create_tracker
 
 
 BASE_DIR = Path(__file__).resolve().parent
 MODELS_DIR = BASE_DIR / "models"
 
 WINDOW_NAME = "CV Object Tracker"
-CAMERA_INDEX = 0
 
 
-def main() -> None:
-    # Open webcam
-    cap = cv2.VideoCapture(CAMERA_INDEX)
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Real-Time Single Object Tracker"
+    )
 
-    if not cap.isOpened():
-        raise RuntimeError(
-            f"Could not open webcam with index {CAMERA_INDEX}."
-        )
+    parser.add_argument(
+        "--tracker",
+        choices=["csrt", "nano", "vit"],
+        default="csrt",
+        help="Tracking algorithm to use.",
+    )
 
-    # Read first frame
-    success, frame = cap.read()
+    parser.add_argument(
+        "--camera",
+        type=int,
+        default=0,
+        help="Webcam device index.",
+    )
 
-    if not success:
-        cap.release()
-        raise RuntimeError(
-            "Could not read the first frame from the webcam."
-        )
+    return parser.parse_args()
 
-    # Select target
+
+def select_target(frame):
+    """Allow the user to select the target ROI."""
     bbox = cv2.selectROI(
         "Select Target",
         frame,
@@ -41,28 +47,56 @@ def main() -> None:
 
     cv2.destroyWindow("Select Target")
 
-    # Validate ROI
     x, y, width, height = map(int, bbox)
 
     if width <= 0 or height <= 0:
+        return None
+
+    return x, y, width, height
+
+
+def main() -> None:
+    args = parse_args()
+
+    # Create selected tracker
+    tracker = create_tracker(
+        tracker_name=args.tracker,
+        models_dir=MODELS_DIR,
+    )
+
+    print(f"Selected tracker: {tracker.name}")
+
+    # Open webcam
+    cap = cv2.VideoCapture(args.camera)
+
+    if not cap.isOpened():
+        raise RuntimeError(
+            f"Could not open webcam with index {args.camera}."
+        )
+
+    # Capture first frame
+    success, frame = cap.read()
+
+    if not success:
+        cap.release()
+        raise RuntimeError(
+            "Could not read the first frame from the webcam."
+        )
+
+    # Select target
+    bbox = select_target(frame)
+
+    if bbox is None:
         cap.release()
         cv2.destroyAllWindows()
 
         print("No valid target was selected.")
         return
 
-    # Create VitTrack
-    tracker = VitTracker(
-        model_path=(
-            MODELS_DIR /
-            "object_tracking_vittrack_2023sep.onnx"
-        )
-    )
-
-    # Initialize
+    # Initialize tracker
     tracker.initialize(
         frame,
-        (x, y, width, height),
+        bbox,
     )
 
     print(f"{tracker.name} tracker initialized.")
@@ -71,7 +105,7 @@ def main() -> None:
     previous_time = time.perf_counter()
 
     while True:
-        # Read next frame
+        # Read frame
         success, frame = cap.read()
 
         if not success:
@@ -81,7 +115,7 @@ def main() -> None:
         # Update tracker
         tracking_success, bbox = tracker.update(frame)
 
-        # FPS
+        # Calculate FPS
         current_time = time.perf_counter()
         elapsed_time = current_time - previous_time
 
@@ -92,8 +126,11 @@ def main() -> None:
 
         previous_time = current_time
 
-        # Tracking score
-        score = tracker.get_score()
+        # Get tracker score when supported
+        score = None
+
+        if hasattr(tracker, "get_score"):
+            score = tracker.get_score()
 
         # Draw tracking result
         if tracking_success:
@@ -140,15 +177,16 @@ def main() -> None:
         )
 
         # Score
-        cv2.putText(
-            frame,
-            f"Score: {score:.3f}",
-            (20, 110),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (255, 255, 0),
-            2,
-        )
+        if score is not None:
+            cv2.putText(
+                frame,
+                f"Score: {score:.3f}",
+                (20, 110),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 255, 0),
+                2,
+            )
 
         # Display
         cv2.imshow(
