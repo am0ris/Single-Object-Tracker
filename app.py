@@ -3,7 +3,7 @@ from pathlib import Path
 
 import cv2
 
-from trackers import NanoTracker
+from trackers import VitTracker
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -14,6 +14,7 @@ CAMERA_INDEX = 0
 
 
 def main() -> None:
+    # Open webcam
     cap = cv2.VideoCapture(CAMERA_INDEX)
 
     if not cap.isOpened():
@@ -21,6 +22,7 @@ def main() -> None:
             f"Could not open webcam with index {CAMERA_INDEX}."
         )
 
+    # Read first frame
     success, frame = cap.read()
 
     if not success:
@@ -29,6 +31,7 @@ def main() -> None:
             "Could not read the first frame from the webcam."
         )
 
+    # Select target
     bbox = cv2.selectROI(
         "Select Target",
         frame,
@@ -38,6 +41,7 @@ def main() -> None:
 
     cv2.destroyWindow("Select Target")
 
+    # Validate ROI
     x, y, width, height = map(int, bbox)
 
     if width <= 0 or height <= 0:
@@ -47,11 +51,15 @@ def main() -> None:
         print("No valid target was selected.")
         return
 
-    tracker = NanoTracker(
-        backbone_path=MODELS_DIR / "nanotrack_backbone_sim.onnx",
-        neckhead_path=MODELS_DIR / "nanotrack_head_sim.onnx",
+    # Create VitTrack
+    tracker = VitTracker(
+        model_path=(
+            MODELS_DIR /
+            "object_tracking_vittrack_2023sep.onnx"
+        )
     )
 
+    # Initialize
     tracker.initialize(
         frame,
         (x, y, width, height),
@@ -63,14 +71,17 @@ def main() -> None:
     previous_time = time.perf_counter()
 
     while True:
+        # Read next frame
         success, frame = cap.read()
 
         if not success:
             print("Could not read frame from webcam.")
             break
 
+        # Update tracker
         tracking_success, bbox = tracker.update(frame)
 
+        # FPS
         current_time = time.perf_counter()
         elapsed_time = current_time - previous_time
 
@@ -81,8 +92,10 @@ def main() -> None:
 
         previous_time = current_time
 
+        # Tracking score
         score = tracker.get_score()
 
+        # Draw tracking result
         if tracking_success:
             x, y, width, height = bbox
 
@@ -115,6 +128,7 @@ def main() -> None:
                 2,
             )
 
+        # FPS
         cv2.putText(
             frame,
             f"FPS: {fps:.1f}",
@@ -125,6 +139,7 @@ def main() -> None:
             2,
         )
 
+        # Score
         cv2.putText(
             frame,
             f"Score: {score:.3f}",
@@ -135,13 +150,19 @@ def main() -> None:
             2,
         )
 
-        cv2.imshow(WINDOW_NAME, frame)
+        # Display
+        cv2.imshow(
+            WINDOW_NAME,
+            frame,
+        )
 
+        # Keyboard
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord("q"):
             break
 
+    # Cleanup
     cap.release()
     cv2.destroyAllWindows()
 
