@@ -1,0 +1,39 @@
+# Python
+
+**pycache**/
+*.py[cod]
+*.pyo
+
+# Virtual Environment
+
+.venv/
+venv/
+env/
+CV_OTracker
+.CV_OTracker
+
+# IDE
+
+.vscode/
+.idea/
+
+# OS
+
+.DS_Store
+Thumbs.db
+
+# Jupyter
+
+.ipynb_checkpoints/
+
+# Logs
+
+*.log
+
+# Benchmark outputs
+
+benchmark/results/
+
+# Local configuration
+
+.env
